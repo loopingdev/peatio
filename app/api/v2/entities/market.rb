@@ -27,6 +27,14 @@ module API
         )
 
         expose(
+          :type,
+          documentation: {
+            type: String,
+            desc: 'Market type.'
+          }
+        )
+
+        expose(
           :base_unit,
           documentation: {
             type: String,

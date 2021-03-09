@@ -34,6 +34,10 @@ module API
                      values: { value: -> (v){ ::Currency.exists?(v) },
                                message: 'public.markets.quote_unit_doesnt_exist' },
                      desc: 'Strict filter for quote unit'
+            optional :type,
+                     type: { value: String, message: 'public.market.non_string_market_type' },
+                     values: { value: -> { ::Market::TYPES }, message: 'public.market.invalid_market_type' },
+                     default: 'spot'
             optional :search, type: JSON, default: {} do
               optional :base_code,
                        type: String,
@@ -55,8 +59,8 @@ module API
                               .transform_keys {|k| "#{k}_cont"}
                               .merge(m: 'or')
 
-            search = ::Market.spot
-                             .active
+            search = ::Market.active
+                             .where(type: params[:type])
                              .where(params.slice(:base_unit, :quote_unit))
                              .ransack(search_params)
 
