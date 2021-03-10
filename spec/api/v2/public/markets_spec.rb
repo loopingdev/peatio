@@ -8,7 +8,7 @@ describe API::V2::Public::Markets, type: :request do
     before { create(:market, :ethusd) }
 
     let(:expected_keys) do
-      %w[id name type base_unit quote_unit min_price max_price
+      %w[id symbol name type base_unit quote_unit min_price max_price
          min_amount amount_precision price_precision state]
     end
 

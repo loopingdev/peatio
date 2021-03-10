@@ -53,7 +53,7 @@ module API
           end
         end
 
-        desc 'Get all markets, result is paginated.',
+        desc 'Get all spot or qe markets, result is paginated.',
           is_array: true,
           success: API::V2::Admin::Entities::Market
         params do
@@ -83,18 +83,18 @@ module API
           success API::V2::Admin::Entities::Market
         end
         params do
-          requires :id,
+          requires :symbol,
                    type: String,
-                   desc: -> { API::V2::Admin::Entities::Market.documentation[:id][:desc] }
+                   desc: -> { API::V2::Admin::Entities::Market.documentation[:symbol][:desc] }
           optional :type,
                    type: { value: String, message: 'admin.market.non_string_market_type' },
-                     values: { value: -> { ::Market::TYPES }, message: 'admin.market.invalid_market_type' },
+                   values: { value: -> { ::Market::TYPES }, message: 'admin.market.invalid_market_type' },
                    default: 'spot'
         end
-        get '/markets/:id', requirements: { id: /[\w\.\-]+/ } do
+        get '/markets/:symbol', requirements: { symbol: /[\w\.\-]+/ } do
           admin_authorize! :read, ::Market
 
-          present ::Market.find_by_symbol_and_type(params[:id], params[:type]), with: API::V2::Admin::Entities::Market
+          present ::Market.find_by_symbol_and_type(params[:symbol], params[:type]), with: API::V2::Admin::Entities::Market
         end
 
         desc 'Create new market.' do
@@ -149,6 +149,7 @@ module API
         end
         params do
           use :update_market_params
+          # Id parameter should be deprecated and changed to symbol
           requires :id,
                    desc: -> { API::V2::Admin::Entities::Market.documentation[:id][:desc] }
           optional :type,

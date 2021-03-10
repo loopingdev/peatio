@@ -23,14 +23,14 @@ module API
           optional :limit,    type: Integer, default: 100, range: 1..1000, desc: 'The number of objects per page (defaults to 100, maximum is 1000).'
         end
         post '/trades' do
-          market = ::Market.find_by!(symbol: params[:market]) if params[:market].present?
+          market = ::Market.find_by_symbol_and_type(params[:market], params[:market_type]) if params[:market].present?
           member = Member.find_by!(uid: params[:uid]) if params[:uid].present?
 
           Trade
             .order(id: :desc)
             .includes(:maker, :taker)
-            .tap { |q| q.where!(market: market) if market }
             .tap { |q| q.where!(market_type: params[:market_type]) }
+            .tap { |q| q.where!(market: market) if market}
             .tap { |q| q.where!("maker_id = #{member.id} OR taker_id = #{member.id}") if member }
             .page(params[:page])
             .per(params[:limit])

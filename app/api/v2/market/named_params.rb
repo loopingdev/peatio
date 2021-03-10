@@ -10,7 +10,7 @@ module API
         params :enabled_markets do
           requires :market,
                    type: String,
-                   values: { value: -> { ::Market.spot.active.pluck(:symbol) }, message: 'market.market.doesnt_exist_or_not_enabled' },
+                   values: { value: -> { ::Market.spot.active.pluck(:symbol) }, message: 'market.spot_market.doesnt_exist_or_not_enabled' },
                    desc: -> { V2::Entities::Market.documentation[:symbol] }
         end
 

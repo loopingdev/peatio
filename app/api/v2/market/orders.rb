@@ -7,7 +7,7 @@ module API
       class Orders < Grape::API
         helpers ::API::V2::Market::NamedParams
 
-        desc 'Get your orders, result is paginated.',
+        desc 'Get your spot or qe orders, result is paginated (by default - spot).',
           is_array: true,
           success: API::V2::Entities::Order
         params do
@@ -98,7 +98,7 @@ module API
           present order, with: API::V2::Entities::Order, type: :full
         end
 
-        desc 'Create a Sell/Buy order.',
+        desc 'Create a Sell/Buy spot order.',
           success: API::V2::Entities::Order
         params do
           use :enabled_markets, :order
@@ -113,7 +113,7 @@ module API
           present order, with: API::V2::Entities::Order
         end
 
-        desc 'Cancel an order.'
+        desc 'Cancel a spot order.'
         params do
           use :order_id
         end
@@ -138,7 +138,7 @@ module API
           end
         end
 
-        desc 'Cancel all my orders.',
+        desc 'Cancel all my spot orders.',
           success: API::V2::Entities::Order
         params do
           optional :market,
@@ -148,7 +148,7 @@ module API
           optional :side,
                    type: String,
                    values: %w(sell buy),
-                   desc: 'If present, only sell orders (asks) or buy orders (bids) will be canncelled.'
+                   desc: 'If present, only sell orders (asks) or buy orders (bids) will be cancelled.'
         end
         post '/orders/cancel' do
           user_authorize! :update, ::Order

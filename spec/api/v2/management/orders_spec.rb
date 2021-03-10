@@ -211,7 +211,7 @@ describe API::V2::Management::Orders, type: :request do
 
         AMQP::Queue.expects(:enqueue).with(:matching, action: 'cancel', order: member1_peatio_order.to_matching_attributes).never
         AMQP::Queue.expects(:enqueue).with(:matching, action: 'cancel', order: member2_peatio_order.to_matching_attributes).never
-        AMQP::Queue.expects(:publish).with(finex_engine.driver, data: { market_id: 'btceth' }, type: 4)
+        AMQP::Queue.expects(:publish).with(finex_engine.driver, data: { market_id: 'btceth', market_type: 'spot' }, type: 4)
 
         request
         expect(response).to have_http_status 204
@@ -222,7 +222,7 @@ describe API::V2::Management::Orders, type: :request do
         data[:uid] = member1.uid
 
         AMQP::Queue.expects(:enqueue).with(:matching, action: 'cancel', order: member1_peatio_order.to_matching_attributes).never
-        AMQP::Queue.expects(:publish).with(finex_engine.driver, data: { market_id: 'btceth', member_uid: member1.uid }, type: 4)
+        AMQP::Queue.expects(:publish).with(finex_engine.driver, data: { market_id: 'btceth', market_type: 'spot', member_uid: member1.uid }, type: 4)
 
         request
         expect(response).to have_http_status 204

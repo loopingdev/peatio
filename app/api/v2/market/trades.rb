@@ -13,7 +13,7 @@ module API
           end
         end
 
-        desc 'Get your executed trades. Trades are sorted in reverse creation order.',
+        desc 'Get your executed spot or qe trades (by default - spot). Trades are sorted in reverse creation order.',
              is_array: true,
              success: API::V2::Entities::Trade
         params do

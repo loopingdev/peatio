@@ -11,7 +11,7 @@ module API
         class OrderBook < Struct.new(:asks, :bids); end
 
         resource :markets do
-          desc 'Get all available markets.',
+          desc 'Based on type, get all available spot or qe markets (by default, spot).',
             is_array: true,
             success: API::V2::Entities::Market
           params do
@@ -37,7 +37,8 @@ module API
             optional :type,
                      type: { value: String, message: 'public.market.non_string_market_type' },
                      values: { value: -> { ::Market::TYPES }, message: 'public.market.invalid_market_type' },
-                     default: 'spot'
+                     default: 'spot',
+                     desc: 'Strict filter for market type'
             optional :search, type: JSON, default: {} do
               optional :base_code,
                        type: String,
@@ -72,7 +73,7 @@ module API
                     extended: !!params[:extended]
           end
 
-          desc 'Get the order book of specified market.',
+          desc 'Get the order book of specified spot market.',
             is_array: true,
             success: API::V2::Entities::OrderBook
           params do
@@ -99,7 +100,7 @@ module API
             present book, with: API::V2::Entities::OrderBook
           end
 
-          desc 'Get recent trades on market, each trade is included only once. Trades are sorted in reverse creation order.',
+          desc 'Get recent trades on spot market, each trade is included only once. Trades are sorted in reverse creation order.',
             is_array: true,
             success: API::V2::Entities::Trade
           params do
@@ -144,7 +145,7 @@ module API
             { timestamp: Time.now.to_i, asks: asks, bids: bids }
           end
 
-          desc 'Get OHLC(k line) of specific market.'
+          desc 'Get OHLC(k line) of specific spot market.'
           params do
             requires :market,
                      type: String,
@@ -174,7 +175,7 @@ module API
               .get_ohlc(params.slice(:limit, :time_from, :time_to).merge(offset: true))
           end
 
-          desc 'Get ticker of all markets (For response doc see /:market/tickers/ response).'
+          desc 'Get ticker of all spot markets (For response doc see /:market/tickers/ response).'
           get "/tickers" do
             Rails.cache.fetch(:markets_tickers, expires_in: 60) do
               ::Market.spot.active.ordered.inject({}) do |h, m|

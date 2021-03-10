@@ -6,7 +6,7 @@ module API
       class Orders < Grape::API
         helpers ::API::V2::OrderHelpers
 
-        desc 'Returns orders' do
+        desc 'Returns orders (by default - spot)' do
           @settings[:scope] = :read_orders
           success API::V2::Management::Entities::Order
         end
@@ -81,6 +81,10 @@ module API
           requires :market,
                    values: { value: -> { ::Market.spot.active.pluck(:symbol) }, message: 'management.order.market_doesnt_exist' },
                    desc: -> { API::V2::Management::Entities::Market.documentation[:id][:desc] }
+          optional :market_type,
+                   values: { value: -> { ::Market::TYPES }, message: 'market.market.invalid_market_type' },
+                   desc: -> {  API::V2::Management::Entities::Market.documentation[:type][:desc] },
+                   default: 'spot'
         end
 
         post '/orders/cancel' do
@@ -89,12 +93,12 @@ module API
             params.merge!(member_id: member.id) if member.present?
           end
 
-          market = ::Market.find_spot_by_symbol(params[:market])
+          market = ::Market.find_by_symbol_and_type(params[:market], params[:market_type])
           market_engine = market.engine
 
           if market_engine.peatio_engine?
             ransack_params = API::V2::Admin::Helpers::RansackBuilder.new(params)
-                                                                    .eq(:member_id, market_type: 'spot', state: 'wait')
+                                                                    .eq(:member_id, :market_type, state: 'wait')
                                                                     .translate(market: :market_id)
                                                                     .build
 
@@ -103,6 +107,7 @@ module API
           else
             filters = {
               market_id: market.symbol,
+              market_type: market.type,
               member_uid: params[:uid]
             }.compact
 

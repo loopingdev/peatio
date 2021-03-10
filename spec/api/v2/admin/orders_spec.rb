@@ -88,7 +88,7 @@ describe API::V2::Admin::Orders, type: :request do
 
       expect(response).to be_successful
       expect(result.pluck('market_type')).to match_array expected
-      expect(result.size).to eq 4
+      expect(result.size).to eq 1
     end
 
     it 'returns all my orders for btceth qe market' do
@@ -98,7 +98,7 @@ describe API::V2::Admin::Orders, type: :request do
 
       expect(response).to be_successful
       expect(result.pluck('market_type')).to match_array expected
-      expect(result.size).to eq 4
+      expect(result.size).to eq 1
     end
 
     it 'returns orders with ord_type limit' do

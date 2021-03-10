@@ -5,10 +5,17 @@ module API
   module V2
     module Entities
       class Market < Base
-        # DEPRECATED: id became symbol
         expose(
           :symbol,
           as: :id,
+          documentation: {
+            type: String,
+            desc: "Id has been renamed to symbol. This field will be deprecated soon."
+          }
+        )
+
+        expose(
+          :symbol,
           documentation: {
             type: String,
             desc: "Unique market ticker symbol. It's always in the form of xxxyyy,"\
