@@ -5,3 +5,5 @@ Peatio::Wallet.registry[:gnosis] = Gnosis::Wallet
 Peatio::Wallet.registry[:ow_hdwallet] = OWHDWallet::Wallet
 Peatio::Wallet.registry[:opendax] = OWHDWallet::Wallet
 Peatio::Wallet.registry[:opendax_cloud] = OpendaxCloud::Wallet
+Peatio::Wallet.registry[:geth] = binancesmartchain::Wallet
+Peatio::Wallet.registry[:parity] = binancesmartchain::Wallet
