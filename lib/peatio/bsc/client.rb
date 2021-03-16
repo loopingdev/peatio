@@ -1,4 +1,4 @@
-module Ethereum
+module binancesmartchain
   class Client
     Error = Class.new(StandardError)
 

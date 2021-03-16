@@ -1,9 +1,9 @@
-module Ethereum
+module binancesmartchain
   class Wallet < Peatio::Wallet::Abstract
 
     DEFAULT_ETH_FEE = { gas_limit: 21_000, gas_price: :standard }.freeze
 
-    DEFAULT_ERC20_FEE = { gas_limit: 90_000, gas_price: :standard }.freeze
+    DEFAULT_bep20_FEE = { gas_limit: 90_000, gas_price: :standard }.freeze
 
     DEFAULT_FEATURES = { skip_deposit_collection: false }.freeze
 
@@ -35,26 +35,26 @@ module Ethereum
         { address: normalize_address(client.json_rpc(:personal_newAccount, [password])),
           secret:  password }
       end
-    rescue Ethereum::Client::Error => e
+    rescue binancesmartchain::Client::Error => e
       raise Peatio::Wallet::ClientError, e
     end
 
     def create_transaction!(transaction, options = {})
-      if @currency.dig(:options, :erc20_contract_address).present?
-        create_erc20_transaction!(transaction)
+      if @currency.dig(:options, :bep20_contract_address).present?
+        create_bep20_transaction!(transaction)
       else
         create_eth_transaction!(transaction, options)
       end
-    rescue Ethereum::Client::Error => e
+    rescue binancesmartchain::Client::Error => e
       raise Peatio::Wallet::ClientError, e
     end
 
     def prepare_deposit_collection!(transaction, deposit_spread, deposit_currency)
       # Don't prepare for deposit_collection in case of eth deposit.
-      return [] if deposit_currency.dig(:options, :erc20_contract_address).blank?
+      return [] if deposit_currency.dig(:options, :bep20_contract_address).blank?
       return [] if deposit_spread.blank?
 
-      options = DEFAULT_ERC20_FEE.merge(deposit_currency.fetch(:options).slice(:gas_limit, :gas_price))
+      options = DEFAULT_bep20_FEE.merge(deposit_currency.fetch(:options).slice(:gas_limit, :gas_price))
 
       options[:gas_price] = calculate_gas_price(options)
 
@@ -65,26 +65,26 @@ module Ethereum
       transaction.options = options
 
       [create_eth_transaction!(transaction)]
-    rescue Ethereum::Client::Error => e
+    rescue binancesmartchain::Client::Error => e
       raise Peatio::Wallet::ClientError, e
     end
 
     def load_balance!
-      if @currency.dig(:options, :erc20_contract_address).present?
-        load_erc20_balance(@wallet.fetch(:address))
+      if @currency.dig(:options, :bep20_contract_address).present?
+        load_bep20_balance(@wallet.fetch(:address))
       else
         client.json_rpc(:eth_getBalance, [normalize_address(@wallet.fetch(:address)), 'latest'])
         .hex
         .to_d
         .yield_self { |amount| convert_from_base_unit(amount) }
       end
-    rescue Ethereum::Client::Error => e
+    rescue binancesmartchain::Client::Error => e
       raise Peatio::Wallet::ClientError, e
     end
 
     private
 
-    def load_erc20_balance(address)
+    def load_bep20_balance(address)
       data = abi_encode('balanceOf(address)', normalize_address(address))
       client.json_rpc(:eth_call, [{ to: contract_address, data: data }, 'latest'])
         .hex
@@ -117,7 +117,7 @@ module Ethereum
                     }.compact, @wallet.fetch(:secret)])
 
       unless valid_txid?(normalize_txid(txid))
-        raise Ethereum::Client::Error, \
+        raise binancesmartchain::Client::Error, \
               "Withdrawal from #{@wallet.fetch(:address)} to #{transaction.to_address} failed."
       end
       # Make sure that we return currency_id
@@ -128,9 +128,9 @@ module Ethereum
       transaction
     end
 
-    def create_erc20_transaction!(transaction, options = {})
-      currency_options = @currency.fetch(:options).slice(:gas_limit, :gas_price, :erc20_contract_address)
-      options.merge!(DEFAULT_ERC20_FEE, currency_options)
+    def create_bep20_transaction!(transaction, options = {})
+      currency_options = @currency.fetch(:options).slice(:gas_limit, :gas_price, :bep20_contract_address)
+      options.merge!(DEFAULT_bep20_FEE, currency_options)
 
       amount = convert_to_base_unit(transaction.amount)
       data = abi_encode('transfer(address,uint256)',
@@ -146,14 +146,14 @@ module Ethereum
       txid = client.json_rpc(:personal_sendTransaction,
                 [{
                     from:     normalize_address(@wallet.fetch(:address)),
-                    to:       options.fetch(:erc20_contract_address),
+                    to:       options.fetch(:bep20_contract_address),
                     data:     data,
                     gas:      '0x' + options.fetch(:gas_limit).to_i.to_s(16),
                     gasPrice: '0x' + options.fetch(:gas_price).to_i.to_s(16)
                   }.compact, @wallet.fetch(:secret)])
 
       unless valid_txid?(normalize_txid(txid))
-        raise Ethereum::Client::Error, \
+        raise binancesmartchain::Client::Error, \
               "Withdrawal from #{@wallet.fetch(:address)} to #{transaction.to_address} failed."
       end
       transaction.hash = normalize_txid(txid)
@@ -170,7 +170,7 @@ module Ethereum
     end
 
     def contract_address
-      normalize_address(@currency.dig(:options, :erc20_contract_address))
+      normalize_address(@currency.dig(:options, :bep20_contract_address))
     end
 
     def valid_txid?(txid)
