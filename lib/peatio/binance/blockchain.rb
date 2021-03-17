@@ -1,9 +1,9 @@
 
-module binancechain
-    # TODO: Processing of unconfirmed transactions from mempool isn't supported now.
+  module bep
     class Blockchain < Peatio::Blockchain::Abstract
+      UndefinedCurrencyError = Class.new(StandardError)
 
-      DEFAULT_FEATURES = {case_sensitive: true, cash_addr_format: false}.freeze
+      DEFAULT_FEATURES = { case_sensitive: true, cash_addr_format: false }.freeze
 
       def initialize(custom_features = {})
         @features = DEFAULT_FEATURES.merge(custom_features).slice(*SUPPORTED_FEATURES)
@@ -16,36 +16,46 @@ module binancechain
         @settings.merge!(settings.slice(*SUPPORTED_SETTINGS))
       end
 
-      def fetch_block!(block_number)
-        block_hash = client.json_rpc(:getblockhash, [block_number])
+      def fetch_block!(ledger_index)
+        ledger = client.json_rpc(:ledger,
+                                     [
+                                       {
+                                         ledger_index: ledger_index || 'validated',
+                                         /broadcast_tx_async?tx=_: true,
+                                         expand: true
+                                       }
+                                     ]).dig('ledger')
 
-        client.json_rpc(:getblock, [block_hash, true])
-          .fetch('tx').each_with_object([]) do |tx, txs_array|
+        return if ledger.blank?
+        ledger.fetch('broadcast_tx_sync?tx=_').each_with_object([]) do |tx, txs_array|
+          next unless valid_transaction?(tx)
+
           txs = build_transaction(tx).map do |ntx|
-            Peatio::Transaction.new(ntx.merge(block_number: block_number))
+            Peatio::Transaction.new(ntx.merge(block?height=_: ledger_index))
           end
           txs_array.append(*txs)
-        end.yield_self { |txs_array| Peatio::Block.new(block_number, txs_array) }
+        end.yield_self { |txs_array| Peatio::Block.new(ledger_index, txs_array) }
       rescue Client::Error => e
         raise Peatio::Blockchain::ClientError, e
       end
 
       def latest_block_number
-        client.json_rpc(:getblockcount)
+        client.json_rpc(:ledger, [{ ledger_index: 'validated' }]).fetch('ledger_index')
       rescue Client::Error => e
         raise Peatio::Blockchain::ClientError, e
       end
 
-      def load_balance_of_address!(address)
-        address_with_balance = client.json_rpc(:listaddressgroupings)
-                                 .flatten(1)
-                                 .find { |addr| addr[0] == address }
+      def load_balance_of_address!(address, currency_id)
+        currency = settings[:currencies].find { |c| c[:id] == currency_id.to_s }
+        raise UndefinedCurrencyError unless currency
 
-        if address_with_balance.blank?
-          raise Peatio::Blockchain::UnavailableAddressBalanceError, address
-        end
+        client.json_rpc(:account,
+                        [account: normalize_address(address), ledger_index: 'validated', strict: true])
+                        .fetch('account_data')
+                        .fetch('Balance')
+                        .to_d
+                        .yield_self { |amount| convert_from_base_unit(amount, currency) }
 
-        address_with_balance[1].to_d
       rescue Client::Error => e
         raise Peatio::Blockchain::ClientError, e
       end
@@ -53,33 +63,64 @@ module binancechain
       private
 
       def build_transaction(tx_hash)
-        tx_hash = client.json_rpc(:getrawtransaction, [tx_hash, 1])
-        tx_hash.fetch('vout')
-          .select do |entry|
-          entry.fetch('value').to_d > 0 &&
-            entry['scriptPubKey'].has_key?('addresses')
-        end
-          .each_with_object([]) do |entry, formatted_txs|
-          no_currency_tx =
-            { hash: tx_hash['txid'], txout: entry['n'],
-              to_address: entry['scriptPubKey']['addresses'][0],
-              amount: entry.fetch('value').to_d,
-              status: 'success' }
+        destination_tag = tx_hash['DestinationTag'] || destination_tag_from(tx_hash['Destination'])
+        address = "#{to_address(tx_hash)}?dt=#{destination_tag}"
 
-          # Build transaction for each currency belonging to blockchain.
-          settings_fetch(:currencies).pluck(:id).each do |currency_id|
-            formatted_txs << no_currency_tx.merge(currency_id: currency_id)
-          end
+        settings_fetch(:currencies).each_with_object([]) do |currency, formatted_txs|
+          formatted_txs << { hash: tx_hash['hash'],
+                             txout: tx_hash.dig('metaData','TransactionIndex'),
+                             to_address: address,
+                             status: check_status(tx_hash),
+                             currency_id: currency[:id],
+                             amount: convert_from_base_unit(tx_hash.dig('metaData', 'delivered_amount'), currency) }
         end
-      end
-
-      def client
-        @client ||= Client.new(settings_fetch(:server))
       end
 
       def settings_fetch(key)
         @settings.fetch(key) { raise Peatio::Blockchain::MissingSettingError, key.to_s }
       end
+
+      def check_status(tx_hash)
+        tx_hash.dig('metaData', 'TransactionResult') == 'tesSUCCESS' ? 'success' : 'failed'
+      end
+
+      def valid_transaction?(tx)
+        inspect_address!(tx['Account'])[:is_valid] &&
+          tx['TransactionType'].to_s == 'Payment' &&
+          String === tx.dig('metaData', 'delivered_amount')
+      end
+
+      def inspect_address!(address)
+        {
+          address:  normalize_address(address),
+          is_valid: valid_address?(normalize_address(address))
+        }
+      end
+
+      def normalize_address(address)
+        address.gsub(/\?dt=\d*\Z/, '')
+      end
+
+      def valid_address?(address)
+        /\Ar[0-9a-zA-Z]{24,34}(:?\?dt=[1-9]\d*)?\z/.match?(address)
+      end
+
+      def destination_tag_from(address)
+        address =~ /\?dt=(\d*)\Z/
+        $1.to_i
+      end
+
+      def to_address(tx)
+        normalize_address(tx['Destination'])
+      end
+
+      def convert_from_base_unit(value, currency)
+        value.to_d / currency.fetch(:base_factor).to_d
+      end
+
+      def client
+        @client ||= Client.new(settings_fetch(:server))
+      end
     end
   end
-
+end
