@@ -1,11 +1,7 @@
-require 'memoist'
-require 'faraday'
-require 'better-faraday'
-
-module binancechain
+ module bep
     class Client
       Error = Class.new(StandardError)
-      class ConnectionError < Error; end
+      ConnectionError = Class.new(Error)
 
       class ResponseError < Error
         def initialize(code, msg)
@@ -22,66 +18,41 @@ module binancechain
 
       def initialize(endpoint)
         @json_rpc_endpoint = URI.parse(endpoint)
+        @json_rpc_call_id = 0
       end
 
       def json_rpc(method, params = [])
         response = connection.post \
           '/',
-          { jsonrpc: '1.0', method: method, params: params }.to_json,
+          { jsonrpc: '2.0', id: rpc_call_id, method: method, params: params }.to_json,
           { 'Accept'       => 'application/json',
             'Content-Type' => 'application/json' }
         response.assert_2xx!
         response = JSON.parse(response.body)
-        response['error'].tap { |e| raise ResponseError.new(e['code'], e['message']) if e }
-        response.fetch('result')
-      rescue => e
-        if e.is_a?(Error)
-          raise e
-        elsif e.is_a?(Faraday::Error)
-          raise ConnectionError, e
-        else
-          raise Error, e
+        response.fetch('result').tap do |result|
+          raise ResponseError.new(result['error_code'], result['error_message']) if result['status'] == 'error'
         end
-      end
-
-      def json_rpc_for_withdrawal(method, address, amount)
-        response = connection.post \
-        '/',
-        { jsonrpc: '1.0', method: method, params: [
-            address,
-            amount.to_f,
-        # '', REMOVED! because protocol dosent support this para
-        # '', REMOVED! because protocol dosent support this para
-        # options[:subtract_fee].to_s == 'true'  # subtract fee from transaction amount.
-        ]}.to_json,
-        { 'Accept'       => 'application/json',
-          'Content-Type' => 'application/json' }
-        response.assert_2xx!
-        response = JSON.parse(response.body)
-        response['error'].tap { |e| raise ResponseError.new(e['code'], e['message']) if e }
         response.fetch('result')
-      rescue => e
-        if e.is_a?(Error)
-          raise e
-        elsif e.is_a?(Faraday::Error)
-          raise ConnectionError, e
-        else
-          raise Error, e
-        end
+      rescue Faraday::Error => e
+        raise ConnectionError, e
       end
 
       private
 
+      def rpc_call_id
+        @json_rpc_call_id += 1
+      end
+
       def connection
-        Faraday.new(@json_rpc_endpoint).tap do |connection|
+        @connection ||= Faraday.new(@json_rpc_endpoint) do |f|
+          f.adapter :net_http_persistent, pool_size: 5
+        end.tap do |connection|
           unless @json_rpc_endpoint.user.blank?
             connection.basic_auth(@json_rpc_endpoint.user,
                                   @json_rpc_endpoint.password)
           end
         end
       end
-      memoize :connection
     end
   end
-
-
+end
